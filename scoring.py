@@ -1,3 +1,8 @@
+import nltk
+nltk.download('punkt', quiet=True)
+nltk.download('brown', quiet=True)
+nltk.download('wordnet', quiet=True)
+
 import re
 from textblob import TextBlob
 
