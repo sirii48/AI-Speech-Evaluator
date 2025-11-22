@@ -7,15 +7,17 @@ import re
 from textblob import TextBlob
 
 def count_grammar_errors(text):
-    # Very simple placeholder grammar check
-    # You can replace with LanguageTool or Ginger API later
-    blob = TextBlob(text)
+    # SAFER grammar check without using blob.sentences
+    words = re.findall(r'\b\w+\b', text)
     errors = 0
-    for sentence in blob.sentences:
-        corrected = sentence.correct()
-        if corrected != sentence:
+
+    for word in words:
+        blob = TextBlob(word)
+        corrected = str(blob.correct())
+        if corrected.lower() != word.lower():
             errors += 1
-    return errors
+
+    return min(errors, 10)  # cap errors
 
 
 def type_token_ratio(text):
