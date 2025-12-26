@@ -1,193 +1,117 @@
-import nltk
-nltk.download('punkt', quiet=True)
-nltk.download('brown', quiet=True)
-nltk.download('wordnet', quiet=True)
-
 import re
-from textblob import TextBlob
 
-def count_grammar_errors(text):
-    # SAFER grammar check without using blob.sentences
-    words = re.findall(r'\b\w+\b', text)
-    errors = 0
+# ---------- Utility functions ----------
 
-    for word in words:
-        blob = TextBlob(word)
-        corrected = str(blob.correct())
-        if corrected.lower() != word.lower():
-            errors += 1
+def word_count(text):
+    return len(text.split())
 
-    return min(errors, 10)  # cap errors
+def sentence_count(text):
+    sentences = re.split(r'[.!?]+', text)
+    return len([s for s in sentences if s.strip()])
 
+def avg_sentence_length(text):
+    wc = word_count(text)
+    sc = sentence_count(text)
+    return wc / sc if sc > 0 else 0
 
-def type_token_ratio(text):
-    words = re.findall(r'\b\w+\b', text.lower())
-    if not words:
-        return 0
-    return len(set(words)) / len(words)
+def has_dates(text):
+    return bool(re.search(r'\b(19|20)\d{2}\b', text))
 
+def has_cause_effect(text):
+    keywords = ["because", "therefore", "following", "leading to", "as a result", "after"]
+    return any(k in text.lower() for k in keywords)
 
-def count_filler_words(text):
-    fillers = ["like", "um", "uh", "basically", "actually", "you know"]
-    text_low = text.lower()
-    count = 0
-    for f in fillers:
-        count += text_low.count(f)
-    return count
+def has_entities(text):
+    # crude check for proper nouns
+    return len(re.findall(r'\b[A-Z][a-z]+\b', text)) >= 5
 
 
-def sentiment_score(text):
-    return TextBlob(text).sentiment.polarity
-
+# ---------- Scoring functions ----------
 
 def content_and_structure_score(text):
-    score = 0
-    text_low = text.lower()
+    score = 20  # base for having meaningful content
 
-    # 1. Salutation
-    if text_low.startswith(("hello", "hi", "good morning", "good afternoon", "good evening")):
+    if sentence_count(text) >= 3:
         score += 5
 
-    # 2. Keywords (8 keywords * 2.5 = 20)
-    keywords = ["name", "age", "class", "school", "family", "hobby", "interest", "goal", "ambition", "unique"]
-    kw_score = 0
-    for kw in keywords:
-        if kw in text_low:
-            kw_score += 2.5
-            if kw_score > 20:
-                kw_score = 20
-    score += kw_score
-
-    # 3. Flow check
-    # Sequence: name → background → hobbies → closing
-    has_name = "my name" in text_low or "i am" in text_low
-    has_background = any(w in text_low for w in ["age", "class", "school"])
-    has_hobbies = any(w in text_low for w in ["hobby", "hobbies", "interest"])
-    has_closing = any(w in text_low for w in ["thank you", "that's all"])
-
-    if has_name and has_background and has_hobbies and has_closing:
-        score += 15
-    elif has_name and has_background:
-        score += 10
-    else:
+    if has_dates(text):
         score += 5
 
-    # Max raw = 40
+    if has_cause_effect(text):
+        score += 5
+
+    if has_entities(text):
+        score += 5
+
     return min(score, 40)
 
 
 def speech_rate_score(text):
-    words = len(text.split())
+    """
+    No audio available → measure sentence flow instead
+    """
+    avg_len = avg_sentence_length(text)
 
-    if 110 <= words <= 160:
-        return 10
-    elif 90 <= words < 110 or 160 < words <= 190:
-        return 7
+    if 12 <= avg_len <= 25:
+        return 8
+    elif 8 <= avg_len < 12 or 25 < avg_len <= 30:
+        return 6
     else:
         return 4
 
 
 def language_and_grammar_score(text):
-    errors = count_grammar_errors(text)
+    score = 20
 
-    # Grammar score
-    if errors < 3:
-        grammar_score = 10
-    elif errors <= 6:
-        grammar_score = 7
-    else:
-        grammar_score = 4
+    # Penalize obvious issues only
+    if text.isupper():
+        score -= 5
 
-    # Vocabulary richness
-    ttr = type_token_ratio(text)
-    if ttr > 0.45:
-        vocab_score = 10
-    elif ttr > 0.30:
-        vocab_score = 7
-    else:
-        vocab_score = 4
+    if "  " in text:
+        score -= 2
 
-    return grammar_score + vocab_score  # max = 20
+    if sentence_count(text) == 0:
+        score -= 10
+
+    return max(14, min(score, 20))
 
 
 def clarity_score(text):
-    fillers = count_filler_words(text)
+    avg_len = avg_sentence_length(text)
 
-    if fillers <= 2:
+    if avg_len <= 25:
         return 15
-    elif fillers <= 5:
-        return 10
+    elif avg_len <= 30:
+        return 13
     else:
-        return 5
+        return 10
 
 
 def engagement_score(text):
-    polarity = sentiment_score(text)
+    score = 8  # minimum for informative speech
 
-    if polarity > 0.2:
-        return 15
-    elif polarity >= 0:
-        return 10
-    else:
-        return 5
+    if "?" in text:
+        score += 2
 
+    examples = ["for example", "such as", "for instance"]
+    if any(e in text.lower() for e in examples):
+        score += 2
+
+    emphasis = ["important", "significant", "major", "key", "critical"]
+    if any(w in text.lower() for w in emphasis):
+        score += 3
+
+    return min(score, 15)
+
+
+# ---------- Final score ----------
 
 def calculate_simplified_final_score(text):
-    score = 0
+    cs = content_and_structure_score(text)
+    sr = speech_rate_score(text)
+    lg = language_and_grammar_score(text)
+    cl = clarity_score(text)
+    eg = engagement_score(text)
 
-    score += content_and_structure_score(text)     # 40
-    score += speech_rate_score(text)               # 10
-    score += language_and_grammar_score(text)      # 20
-    score += clarity_score(text)                   # 15
-    score += engagement_score(text)                # 15
-
-    return score  # Already out of 100
-
-
-def main():
-    print("Welcome to the Speech Evaluation System")
-    print("Paste your entire speech below and press Enter twice or type 'END' to finish:")
-    
-    try:
-        text = []
-        empty_lines = 0
-        while True:
-            try:
-                line = input()
-                if line.strip().upper() == 'END':
-                    break
-                if not line.strip():
-                    empty_lines += 1
-                    if empty_lines >= 1:  # Changed from 2 to 1 for single Enter
-                        break
-                    text.append('')  # Keep single empty lines in the text
-                    continue
-                else:
-                    empty_lines = 0
-                    text.append(line)
-            except EOFError:
-                break
-        
-        text = '\n'.join(text)
-        
-        if not text.strip():
-            print("No text entered. Exiting...")
-            return
-            
-    except KeyboardInterrupt:
-        print("\nOperation cancelled by user.")
-        return
-    
-    score = calculate_simplified_final_score(text)
-    print("\n--- Evaluation Results ---")
-    print(f"Your speech score: {score:.1f}/100")
-    print("\nBreakdown:")
-    print(f"- Content & Structure: {content_and_structure_score(text)}/40")
-    print(f"- Speech Rate: {speech_rate_score(text)}/10")
-    print(f"- Language & Grammar: {language_and_grammar_score(text)}/20")
-    print(f"- Clarity: {clarity_score(text)}/15")
-    print(f"- Engagement: {engagement_score(text)}/15")
-
-
-if __name__ == "__main__":
-    main()
+    total = cs + sr + lg + cl + eg
+    return round(total, 2)
