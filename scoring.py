@@ -1,117 +1,107 @@
+import nltk
 import re
+import textstat
+from textblob import TextBlob
 
-# ---------- Utility functions ----------
+# Ensure necessary data is downloaded
+nltk.download('punkt', quiet=True)
 
-def word_count(text):
-    return len(text.split())
+def type_token_ratio(text):
+    words = re.findall(r'\b\w+\b', text.lower())
+    if not words:
+        return 0
+    return len(set(words)) / len(words)
 
-def sentence_count(text):
-    sentences = re.split(r'[.!?]+', text)
-    return len([s for s in sentences if s.strip()])
-
-def avg_sentence_length(text):
-    wc = word_count(text)
-    sc = sentence_count(text)
-    return wc / sc if sc > 0 else 0
-
-def has_dates(text):
-    return bool(re.search(r'\b(19|20)\d{2}\b', text))
-
-def has_cause_effect(text):
-    keywords = ["because", "therefore", "following", "leading to", "as a result", "after"]
-    return any(k in text.lower() for k in keywords)
-
-def has_entities(text):
-    # crude check for proper nouns
-    return len(re.findall(r'\b[A-Z][a-z]+\b', text)) >= 5
-
-
-# ---------- Scoring functions ----------
+def count_filler_words(text):
+    # Expanded filler list
+    fillers = ["like", "um", "uh", "basically", "actually", "you know", "sort of"]
+    text_low = text.lower()
+    count = sum(text_low.count(f) for f in fillers)
+    return count
 
 def content_and_structure_score(text):
-    score = 20  # base for having meaningful content
+    """Grades based on information density and professional structure."""
+    score = 0
+    word_count = len(text.split())
+    
+    # 1. Length/Substance (20 pts)
+    if word_count > 150: score += 20
+    elif word_count > 75: score += 15
+    else: score += 5
 
-    if sentence_count(text) >= 3:
-        score += 5
-
-    if has_dates(text):
-        score += 5
-
-    if has_cause_effect(text):
-        score += 5
-
-    if has_entities(text):
+    # 2. Complexity/Structure (20 pts)
+    # Using Coleman-Liau Index as a proxy for structural sophistication
+    grade_level = textstat.coleman_liau_index(text)
+    if grade_level >= 10: # High school/College level writing
+        score += 20
+    elif grade_level >= 7:
+        score += 15
+    else:
         score += 5
 
     return min(score, 40)
 
-
 def speech_rate_score(text):
-    """
-    No audio available → measure sentence flow instead
-    """
-    avg_len = avg_sentence_length(text)
-
-    if 12 <= avg_len <= 25:
-        return 8
-    elif 8 <= avg_len < 12 or 25 < avg_len <= 30:
-        return 6
+    """Evaluates the 'Tempo' based on word complexity."""
+    # Ideal speeches have a mix of simple and complex words
+    diff_words = textstat.difficult_words(text)
+    total_words = len(text.split())
+    ratio = diff_words / total_words if total_words > 0 else 0
+    
+    # If the text is too simple or too overly complex, score drops
+    if 0.1 <= ratio <= 0.3:
+        return 10
+    elif ratio < 0.1:
+        return 7
     else:
-        return 4
-
+        return 5
 
 def language_and_grammar_score(text):
-    score = 20
+    """Grades based on Vocabulary Richness and Readability."""
+    # Vocabulary richness (TTR)
+    ttr = type_token_ratio(text)
+    vocab_score = 10 if ttr > 0.5 else (7 if ttr > 0.35 else 4)
 
-    # Penalize obvious issues only
-    if text.isupper():
-        score -= 5
+    # Readability (Flesch Ease)
+    ease = textstat.flesch_reading_ease(text)
+    # 60-100 is standard clear speech
+    grammar_score = 10 if ease > 50 else 7
 
-    if "  " in text:
-        score -= 2
-
-    if sentence_count(text) == 0:
-        score -= 10
-
-    return max(14, min(score, 20))
-
+    return grammar_score + vocab_score
 
 def clarity_score(text):
-    avg_len = avg_sentence_length(text)
+    """Grades based on lack of filler words and sentence flow."""
+    fillers = count_filler_words(text)
+    avg_sentence_len = textstat.avg_sentence_length(text)
 
-    if avg_len <= 25:
-        return 15
-    elif avg_len <= 30:
-        return 13
-    else:
-        return 10
-
-
-def engagement_score(text):
-    score = 8  # minimum for informative speech
-
-    if "?" in text:
-        score += 2
-
-    examples = ["for example", "such as", "for instance"]
-    if any(e in text.lower() for e in examples):
-        score += 2
-
-    emphasis = ["important", "significant", "major", "key", "critical"]
-    if any(w in text.lower() for w in emphasis):
-        score += 3
-
+    score = 0
+    # Filler penalty
+    if fillers <= 2: score += 10
+    else: score += 5
+    
+    # Flow (Avg sentence length between 10-20 words is ideal for speaking)
+    if 10 <= avg_sentence_len <= 25: score += 5
+    else: score += 2
+    
     return min(score, 15)
 
-
-# ---------- Final score ----------
+def engagement_score(text):
+    """Grades based on Sentiment and Subjectivity."""
+    blob = TextBlob(text)
+    polarity = abs(blob.sentiment.polarity) # Stronger emotions (pos or neg) are more engaging
+    subjectivity = blob.sentiment.subjectivity # Opinions are more engaging than raw dry facts
+    
+    score = 5 # Base score
+    if polarity > 0.1: score += 5
+    if subjectivity > 0.3: score += 5
+    
+    return min(score, 15)
 
 def calculate_simplified_final_score(text):
-    cs = content_and_structure_score(text)
-    sr = speech_rate_score(text)
-    lg = language_and_grammar_score(text)
-    cl = clarity_score(text)
-    eg = engagement_score(text)
-
-    total = cs + sr + lg + cl + eg
-    return round(total, 2)
+    return (
+        content_and_structure_score(text) +
+        speech_rate_score(text) +
+        language_and_grammar_score(text) +
+        clarity_score(text) +
+        engagement_score(text)
+    )
