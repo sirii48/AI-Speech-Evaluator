@@ -1,22 +1,43 @@
 # scoring.py
-import nltk
-nltk.download('punkt', quiet=True)
-nltk.download('averaged_perceptron_tagger', quiet=True)
-
 import re
 from textblob import TextBlob
 import math
+import nltk
+import os
+
+# Function to ensure NLTK data is available
+def ensure_nltk_data():
+    try:
+        # Check if punkt tokenizer is available
+        nltk.data.find('tokenizers/punkt')
+    except LookupError:
+        # Download if not available
+        nltk.download('punkt', quiet=True)
+    
+    try:
+        # Check if averaged_perceptron_tagger is available
+        nltk.data.find('taggers/averaged_perceptron_tagger')
+    except LookupError:
+        # Download if not available
+        nltk.download('averaged_perceptron_tagger', quiet=True)
 
 def improved_grammar_score(text):
     """More comprehensive grammar evaluation"""
-    sentences = nltk.sent_tokenize(text)
+    ensure_nltk_data()
+    
+    try:
+        sentences = nltk.sent_tokenize(text)
+    except:
+        # Fallback if NLTK fails
+        sentences = text.split('. ')
+    
     if not sentences:
         return 0
     
     grammar_issues = 0
     
     # Check for sentence structure variety
-    sentence_lengths = [len(nltk.word_tokenize(s)) for s in sentences]
+    sentence_lengths = [len(sentence.split()) for sentence in sentences]
     if len(set(sentence_lengths)) < 2:  # All sentences have similar length
         grammar_issues += 1
     
@@ -58,25 +79,31 @@ def vocabulary_richness(text):
 
 def sentence_complexity(text):
     """Evaluate sentence structure complexity"""
-    sentences = nltk.sent_tokenize(text)
+    ensure_nltk_data()
+    
+    try:
+        sentences = nltk.sent_tokenize(text)
+    except:
+        # Fallback if NLTK fails
+        sentences = text.split('. ')
+    
     if not sentences:
         return 0
     
     # Calculate average sentence length
-    avg_length = sum(len(nltk.word_tokenize(s)) for s in sentences) / len(sentences)
+    avg_length = sum(len(sentence.split()) for sentence in sentences) / len(sentences)
     
     # Count different sentence structures
     complex_sentences = 0
     
     for sentence in sentences:
-        words = nltk.word_tokenize(sentence)
-        tagged = nltk.pos_tag(words)
+        words = sentence.split()
         
         # Count subordinate conjunctions as indicators of complex sentences
         sub_conj = ['that', 'which', 'who', 'whom', 'whose', 'where', 'when', 
                    'if', 'unless', 'because', 'since', 'although', 'while']
         
-        if any(word.lower() in sub_conj for word, tag in tagged):
+        if any(word.lower() in sub_conj for word in words):
             complex_sentences += 1
     
     # Calculate complexity score
@@ -151,7 +178,11 @@ def clarity_score(text):
 def engagement_score(text):
     """Evaluate engagement through varied factors"""
     # Sentiment analysis
-    polarity = TextBlob(text).sentiment.polarity
+    try:
+        polarity = TextBlob(text).sentiment.polarity
+    except:
+        # Fallback if TextBlob fails
+        polarity = 0
     
     # Check for rhetorical questions
     rhetorical_questions = len(re.findall(r'\?', text))
@@ -164,13 +195,6 @@ def engagement_score(text):
 
 def content_relevance_score(text):
     """Evaluate content quality based on information density"""
-    # Count unique entities (simplified - just proper nouns)
-    tokens = nltk.word_tokenize(text)
-    pos_tags = nltk.pos_tag(tokens)
-    
-    proper_nouns = [word for word, tag in pos_tags if tag == 'NNP']
-    unique_entities = len(set(proper_nouns))
-    
     # Count numbers/dates which often indicate specific information
     numbers = len(re.findall(r'\b\d+\b', text))
     
@@ -178,6 +202,10 @@ def content_relevance_score(text):
     words = re.findall(r'\b\w+\b', text.lower())
     if not words:
         return 0
+    
+    # Count capitalized words which might indicate proper nouns/entities
+    capitalized_words = [word for word in text.split() if word and word[0].isupper()]
+    unique_entities = len(set(capitalized_words))
     
     info_density = (unique_entities + numbers) / len(words)
     
@@ -193,7 +221,14 @@ def content_relevance_score(text):
 
 def structure_score(text):
     """Evaluate speech structure"""
-    sentences = nltk.sent_tokenize(text)
+    ensure_nltk_data()
+    
+    try:
+        sentences = nltk.sent_tokenize(text)
+    except:
+        # Fallback if NLTK fails
+        sentences = text.split('. ')
+    
     if not sentences:
         return 0
     
