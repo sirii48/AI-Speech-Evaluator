@@ -8,42 +8,58 @@ from scoring import (
     engagement_score
 )
 
-st.set_page_config(page_title="Speech Evaluation Tool", layout="centered")
+st.set_page_config(page_title="Speech Evaluator", page_icon="🎤")
 
-st.title("🗣️ Speech Evaluation Tool")
-st.write("Paste your speech transcript below and click **Evaluate**.")
+st.title("🎤 Speech Evaluation Tool")
 
-# Custom focus color
+# Professional Styling
 st.markdown("""
-<style>
-textarea:focus {
-    border-color: #1E90FF !important;
-    box-shadow: 0 0 0 2px #1E90FF !important;
-}
-</style>
+    <style>
+        .stTextArea textarea:focus { border-color: #1E90FF !important; }
+        .metric-card { background-color: #f0f2f6; padding: 20px; border-radius: 10px; }
+    </style>
 """, unsafe_allow_html=True)
 
-text = st.text_area("Enter transcript:", height=250)
+st.write("Paste any text—be it a personal intro or a news article—to evaluate its quality as a speech.")
+
+text = st.text_area("Enter transcript:", height=250, placeholder="Paste text here...")
 
 if st.button("Evaluate"):
     if not text.strip():
         st.error("Please enter some text!")
     else:
-        final_score = calculate_simplified_final_score(text)
+        # Scoring Logic
+        f_score = calculate_simplified_final_score(text)
         cs = content_and_structure_score(text)
         sr = speech_rate_score(text)
         lg = language_and_grammar_score(text)
         cl = clarity_score(text)
         eg = engagement_score(text)
 
-        st.subheader("🎯 Final Score")
-        st.metric("Overall Score (out of 100)", final_score)
+        st.divider()
+        
+        # Display Final Score
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.subheader("🎯 Overall Score")
+            st.metric("", f"{f_score:.1f}/100")
+        
+        with col2:
+            st.subheader("📊 Breakdown")
+            
+            st.write(f"Content & Structure ({cs}/40)")
+            st.progress(cs / 40)
+            
+            st.write(f"Speech Rate Flow ({sr}/10)")
+            st.progress(sr / 10)
+            
+            st.write(f"Language & Vocabulary ({lg}/20)")
+            st.progress(lg / 20)
+            
+            st.write(f"Clarity ({cl}/15)")
+            st.progress(cl / 15)
+            
+            st.write(f"Engagement/Sentiment ({eg}/15)")
+            st.progress(eg / 15)
 
-        st.subheader("📊 Score Breakdown")
-        st.write(f"**Content & Structure:** {cs} / 40")
-        st.write(f"**Sentence Flow:** {sr} / 10")
-        st.write(f"**Language & Grammar:** {lg} / 20")
-        st.write(f"**Clarity:** {cl} / 15")
-        st.write(f"**Engagement:** {eg} / 15")
-
-        st.success("Evaluation complete!")
+        st.success("Evaluation complete! Wikipedia text will now score much higher in structure and language.")
