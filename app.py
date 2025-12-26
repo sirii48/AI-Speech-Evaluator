@@ -8,7 +8,7 @@ from scoring import (
     engagement_score
 )
 
-st.title("Nirmaan AI Internship - Speech Evaluation Tool ")
+st.title(" Speech Evaluation Tool ")
 
 # Add custom CSS to change text area focus border color
 st.markdown("""
