@@ -2,7 +2,7 @@
 import streamlit as st
 from scoring import calculate_improved_score
 
-st.title("Improved Speech Evaluation Tool")
+st.title("Speech Evaluation Tool")
 
 # Add custom CSS to change text area focus border color
 st.markdown("""
