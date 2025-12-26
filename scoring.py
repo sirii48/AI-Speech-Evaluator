@@ -1,13 +1,10 @@
 # scoring.py
 import nltk
 nltk.download('punkt', quiet=True)
-nltk.download('brown', quiet=True)
-nltk.download('wordnet', quiet=True)
 nltk.download('averaged_perceptron_tagger', quiet=True)
 
 import re
 from textblob import TextBlob
-from collections import Counter
 import math
 
 def improved_grammar_score(text):
@@ -31,26 +28,6 @@ def improved_grammar_score(text):
     # Check for proper punctuation
     if not re.search(r'[.!?]$', text):
         grammar_issues += 1
-    
-    # Check for subject-verb agreement using TextBlob
-    try:
-        blob = TextBlob(text)
-        # This is a simplified check - real grammar checking is complex
-        # We'll count potential issues by checking if TextBlob detects unusual patterns
-        for sentence in blob.sentences:
-            # Look for potential subject-verb agreement issues
-            words = sentence.words
-            tags = sentence.tags
-            
-            # Simple heuristic: check for common agreement patterns
-            for i, (word, tag) in enumerate(tags):
-                if tag.startswith('VB') and i > 0:
-                    prev_tag = tags[i-1][1]
-                    # This is a very simplified check
-                    if prev_tag == 'NN' and word.endswith('s') == False:
-                        grammar_issues += 0.5
-    except:
-        pass
     
     # Convert to score (max 10)
     return max(0, 10 - min(grammar_issues, 10))
@@ -90,7 +67,6 @@ def sentence_complexity(text):
     
     # Count different sentence structures
     complex_sentences = 0
-    simple_sentences = 0
     
     for sentence in sentences:
         words = nltk.word_tokenize(sentence)
@@ -102,8 +78,6 @@ def sentence_complexity(text):
         
         if any(word.lower() in sub_conj for word, tag in tagged):
             complex_sentences += 1
-        else:
-            simple_sentences += 1
     
     # Calculate complexity score
     if avg_length > 20 and complex_sentences > 0:
@@ -134,12 +108,8 @@ def coherence_score(text):
         return 0
     transition_density = transition_count / len(words)
     
-    # Check for pronoun consistency (simplified)
-    pronouns = ['he', 'she', 'it', 'they', 'this', 'that', 'these', 'those']
-    pronoun_count = sum(1 for word in words if word in pronouns)
-    
     # Map to score (max 10)
-    if transition_density > 0.05 and pronoun_count > 0:
+    if transition_density > 0.05:
         return 10
     elif transition_density > 0.03:
         return 8
@@ -184,23 +154,13 @@ def engagement_score(text):
     polarity = TextBlob(text).sentiment.polarity
     
     # Check for rhetorical questions
-    rhetorical_questions = len(re.findall(r'\b\w+\s+\w+\s+\w+\s+\?', text))
-    
-    # Check for active voice (simplified)
-    passive_indicators = ['is', 'are', 'was', 'were', 'been', 'be'] + ['by']
-    passive_count = sum(1 for word in text.lower().split() if word in passive_indicators)
-    
-    words = re.findall(r'\b\w+\b', text.lower())
-    if not words:
-        return 0
-    passive_ratio = passive_count / len(words)
+    rhetorical_questions = len(re.findall(r'\?', text))
     
     # Calculate engagement score (max 15)
     sentiment_score = 5 + abs(polarity) * 5  # Both positive and negative can be engaging
     question_score = min(5, rhetorical_questions * 2)
-    voice_score = max(0, 5 - passive_ratio * 10)
     
-    return min(15, sentiment_score + question_score + voice_score)
+    return min(15, sentiment_score + question_score)
 
 def content_relevance_score(text):
     """Evaluate content quality based on information density"""
@@ -267,8 +227,6 @@ def structure_score(text):
 
 def calculate_improved_score(text):
     """Calculate the overall speech score using improved metrics"""
-    score = 0
-    
     # Component scores with their maximum values
     grammar = improved_grammar_score(text)                # Max: 10
     vocab = vocabulary_richness(text)                     # Max: 10
