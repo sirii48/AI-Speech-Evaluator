@@ -35,7 +35,8 @@ if st.button("Evaluate"):
 
         st.subheader("📊 Breakdown")
         for category, score in breakdown.items():
-            st.write(f"**{category}:** {score:.1f}/{'10' if category in ['Grammar', 'Vocabulary', 'Sentence Complexity', 'Coherence'] else '15' if category in ['Clarity', 'Engagement'] else '20'}")
+            max_score = "10" if category in ['Grammar', 'Vocabulary', 'Sentence Complexity', 'Coherence'] else "15" if category in ['Clarity', 'Engagement'] else "20"
+            st.write(f"**{category}:** {score:.1f}/{max_score}")
 
         # Add qualitative feedback
         st.subheader("💬 Feedback")
